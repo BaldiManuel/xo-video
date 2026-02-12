@@ -3,149 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XO-Tube Ultra-Ligero</title>
+    <title>XO-Tube Final</title>
     <style>
-        body { 
-            font-family: sans-serif; 
-            background-color: #121212; 
-            color: white; 
-            text-align: center; 
-            padding: 15px; 
-            margin: 0;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-        h1 { color: #ff0000; font-size: 1.8em; margin-bottom: 5px; }
-        .subtitle { font-size: 0.8em; color: #888; margin-bottom: 20px; }
-        input { 
-            width: 90%; 
-            padding: 12px; 
-            margin: 10px 0; 
-            border-radius: 6px; 
-            border: 1px solid #444;
-            background: #2b2b2b;
-            color: white;
-            font-size: 16px; /* Evita zoom automático en móviles */
-        }
-        button { 
-            width: 95%; 
-            padding: 14px; 
-            background-color: #ff0000; 
-            color: white; 
-            border: none; 
-            border-radius: 6px; 
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 1em;
-        }
-        button:active { background-color: #b30000; }
-        video { 
-            width: 100%; 
-            margin-top: 20px; 
-            border-radius: 8px; 
-            background: black; 
-            display: none; 
-            border: 1px solid #444;
-        }
-        #mensaje { 
-            margin-top: 15px; 
-            font-size: 0.9em; 
-            color: #3ea6ff; 
-            min-height: 1.2em;
-        }
-        .footer { margin-top: 30px; font-size: 0.7em; color: #555; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 10px; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: 1px solid #444; background: #2b2b2b; color: white; }
+        button { width: 95%; padding: 12px; background: #0088cc; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        video { width: 100%; margin-top: 20px; border-radius: 5px; display: none; background: black; }
+        #estado { margin-top: 15px; color: #aaa; font-size: 0.9em; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>XO-Tube 🚀</h1>
-    <div class="subtitle">Versión Multi-Servidor para OLPC</div>
-    
-    <input type="text" id="inputUrl" placeholder="Pega el link de YouTube aquí...">
-    <button onclick="buscarVideo()">VER VIDEO</button>
-
-    <div id="mensaje">Listo para conectar</div>
-    
-    <video id="reproductor" controls autoplay playsinline></video>
-</div>
-
-<div class="footer">
-    Si falla, intenta darle al botón de nuevo.<br>
-    Desarrollado para funcionar en navegadores antiguos.
+    <input type="text" id="url" placeholder="Pega el link de YouTube">
+    <button onclick="reproducir()">REPRODUCIR</button>
+    <div id="estado">Listo.</div>
+    <video id="vid" controls autoplay></video>
 </div>
 
 <script>
-    async function buscarVideo() {
-        const input = document.getElementById('inputUrl').value;
-        const mensaje = document.getElementById('mensaje');
-        const video = document.getElementById('reproductor');
+    async function reproducir() {
+        const urlInput = document.getElementById('url').value;
+        const estado = document.getElementById('estado');
+        const video = document.getElementById('vid');
 
-        // Extraer ID del video
-        const videoIdMatch = input.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
-        if (!videoIdMatch) {
-            mensaje.style.color = "orange";
-            mensaje.innerText = "⚠️ Link no válido";
-            return;
-        }
-        const videoId = videoIdMatch[1];
+        const match = urlInput.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+        if (!match) return alert("Link inválido");
+        const id = match[1];
 
-        // Lista de servidores (Instancias de Piped)
-        const instancias = [
-            'https://pipedapi.kavin.rocks',
-            'https://api.piped.victr.me',
-            'https://piped-api.lunar.icu',
-            'https://pipedapi.leptons.xyz',
-            'https://pipedapi.r4fo.com'
-        ];
-
-        video.style.display = "none";
-        video.src = ""; // Limpiar video anterior
-
-        for (let base of instancias) {
-            mensaje.style.color = "#3ea6ff";
-            mensaje.innerText = "🔄 Intentando conectar...";
-            
-            try {
-                // El timeout ayuda a no quedarse esperando un servidor lento
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); 
-
-                const respuesta = await fetch(`${base}/streams/${videoId}`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if (!respuesta.ok) throw new Error("Servidor ocupado");
-
-                const datos = await respuesta.json();
-                
-                // Prioridad: 144p -> 240p -> 360p -> lo que sea
-                const stream = datos.videoStreams.find(s => s.quality === '144p') 
-                               || datos.videoStreams.find(s => s.quality === '240p')
-                               || datos.videoStreams.find(s => s.quality === '360p')
-                               || datos.videoStreams[0];
-
-                if (stream && stream.url) {
-                    mensaje.style.color = "#4CAF50";
-                    mensaje.innerText = "✅ ¡Conectado! Reproduciendo: " + datos.title;
-                    video.src = stream.url;
-                    video.style.display = "block";
-                    return; // Detener la búsqueda si funciona
-                }
-            } catch (error) {
-                console.log("Fallo en instancia: " + base);
-                continue; // Probar la siguiente instancia
-            }
-        }
+        // Usamos una instancia de Invidious que suele ser muy abierta
+        const instancia = "https://inv.tux.rs"; 
         
-        mensaje.style.color = "#ff4444";
-        mensaje.innerText = "❌ Todos los servidores fallaron. Intenta de nuevo.";
+        estado.innerText = "Buscando video...";
+        video.style.display = "none";
+
+        try {
+            // Buscamos la información del video
+            const res = await fetch(`${instancia}/api/v1/videos/${id}`);
+            const data = await res.json();
+
+            // Buscamos el formato mp4 más ligero
+            const format = data.formatStreams.find(f => f.container === "mp4" && (f.quality === "360p" || f.quality === "144p")) || data.formatStreams[0];
+
+            if (format) {
+                // Invidious requiere que el link sea absoluto
+                let videoUrl = format.url;
+                if (videoUrl.startsWith('/')) {
+                    videoUrl = instancia + videoUrl;
+                }
+
+                video.src = videoUrl;
+                video.style.display = "block";
+                estado.innerText = "Reproduciendo: " + data.title;
+            } else {
+                estado.innerText = "No se encontró un formato compatible.";
+            }
+        } catch (e) {
+            estado.innerText = "Error: La instancia está saturada. Intenta de nuevo.";
+            console.error(e);
+        }
     }
 </script>
 
