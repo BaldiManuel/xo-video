@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XO-Tube Liviano</title>
+    <style>
+        /* Diseño ultra simple para que la XO no se trabe */
+        body { 
+            font-family: sans-serif; 
+            background-color: #121212; 
+            color: white; 
+            text-align: center; 
+            padding: 20px; 
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        h1 { color: #ff0000; font-size: 1.5em; }
+        input { 
+            width: 90%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            border: 1px solid #444;
+            background: #2b2b2b;
+            color: white;
+        }
+        button { 
+            width: 95%; 
+            padding: 12px; 
+            background-color: #ff0000; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover { background-color: #cc0000; }
+        video { 
+            width: 100%; 
+            margin-top: 20px; 
+            border-radius: 5px; 
+            background: black; 
+            display: none; 
+        }
+        .estado { margin-top: 15px; font-size: 0.9em; color: #aaaaaa; }
+        .link-directo {
+            display: none;
+            margin-top: 10px;
+            color: #3ea6ff;
+            text-decoration: none;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>XO-Tube 🚀</h1>
+    <p style="font-size: 0.8em;">Modo ahorro de datos (API Piped)</p>
+    
+    <input type="text" id="inputUrl" placeholder="Pega el link de YouTube aquí">
+    <button onclick="buscarVideo()">REPRODUCIR VIDEO</button>
+
+    <div id="mensaje" class="estado">Listo para buscar...</div>
+    
+    <video id="reproductor" controls autoplay></video>
+    
+    <br>
+    <a id="linkDescarga" class="link-directo" target="_blank">Abrir video en pestaña nueva</a>
+</div>
+
+<script>
+    async function buscarVideo() {
+        const input = document.getElementById('inputUrl').value;
+        const mensaje = document.getElementById('mensaje');
+        const video = document.getElementById('reproductor');
+        const link = document.getElementById('linkDescarga');
+
+        // 1. Extraer ID del video
+        const videoIdMatch = input.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+        if (!videoIdMatch) {
+            alert("Por favor, pega un link válido de YouTube");
+            return;
+        }
+        const videoId = videoIdMatch[1];
+
+        mensaje.innerText = "Buscando formatos livianos (144p/240p)...";
+        video.style.display = "none";
+        link.style.display = "none";
+
+        try {
+            // 2. Consultar API de Piped (Usamos una instancia estable)
+            const respuesta = await fetch(`https://pipedapi.kavin.rocks/streams/${videoId}`);
+            const datos = await respuesta.json();
+
+            // 3. Filtrar por calidad baja para que la XO pueda con el video
+            // Buscamos 144p o 240p que sea mp4 o webm
+            const stream = datos.videoStreams.find(s => s.quality === '144p' || s.quality === '240p') 
+                           || datos.videoStreams[0];
+
+            if (stream && stream.url) {
+                mensaje.innerText = "Reproduciendo: " + datos.title;
+                video.src = stream.url;
+                video.style.display = "block";
+                
+                // Opción de link directo por si el reproductor falla en la XO
+                link.href = stream.url;
+                link.style.display = "inline-block";
+                link.innerText = "Link directo al video (" + stream.quality + ")";
+            } else {
+                mensaje.innerText = "No se encontraron formatos compatibles.";
+            }
+        } catch (error) {
+            console.error(error);
+            mensaje.innerText = "Error al conectar. Intenta con otro video.";
+        }
+    }
+</script>
+
+</body>
+</html>
