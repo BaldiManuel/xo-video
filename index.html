@@ -3,76 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XO-Tube Oficial</title>
+    <title>XO-Tube Slim</title>
     <style>
-        body { font-family: sans-serif; background: #000; color: #fff; text-align: center; margin: 0; padding: 10px; }
-        .box { max-width: 600px; margin: 0 auto; background: #111; padding: 20px; border-radius: 10px; border: 2px solid #333; }
-        h1 { color: #f00; font-size: 1.5em; margin-bottom: 5px; }
-        input { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: 1px solid #444; background: #222; color: #fff; font-size: 16px; }
-        button { width: 95%; padding: 12px; background: #f00; color: #fff; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
-        
-        /* Contenedor del video para que mantenga la forma */
-        .video-container {
+        body { font-family: sans-serif; background: #000; color: #ccc; margin: 0; padding: 10px; }
+        .container { max-width: 640px; margin: 0 auto; }
+        input { 
+            width: 80%; padding: 10px; border-radius: 5px; border: 1px solid #444; 
+            background: #222; color: #fff; margin-bottom: 10px;
+        }
+        button { 
+            padding: 10px 20px; background: #28a745; color: white; 
+            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
+        }
+        /* El secreto: Un contenedor que oculta los bordes de la interfaz */
+        .video-frame {
             position: relative;
-            padding-bottom: 56.25%; /* Relación 16:9 */
-            height: 0;
-            overflow: hidden;
-            margin-top: 20px;
-            display: none; /* Se muestra al cargar */
-            border: 1px solid #444;
-        }
-        .video-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
             width: 100%;
-            height: 100%;
+            padding-bottom: 56.25%; /* Ratio 16:9 */
+            height: 0;
+            background: #111;
+            margin-top: 15px;
+            display: none;
+            border: 2px solid #444;
         }
-        .footer { margin-top: 20px; font-size: 0.8em; color: #666; }
+        iframe {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h1>XO-Tube 🚀</h1>
-    <p style="font-size: 0.8em;">Modo Directo (Sin bloqueos)</p>
+<div class="container">
+    <h2 style="color:#28a745; margin-bottom:5px;">XO-Tube Slim</h2>
+    <p style="font-size: 0.7em; margin-top:0;">Versión de bajo consumo (No-Cookie)</p>
     
-    <input type="text" id="urlInput" placeholder="Pega el link de YouTube aquí">
-    <button onclick="cargarVideo()">REPRODUCIR AHORA</button>
+    <input type="text" id="ytUrl" placeholder="Pega el link aquí">
+    <button onclick="reproducir()">VER</button>
 
-    <div id="wrapper" class="video-container">
-        <iframe id="reproductor" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <div id="videoBox" class="video-frame">
+        <iframe id="player" src="" frameborder="0" 
+            allow="autoplay; encrypted-media" allowfullscreen>
+        </iframe>
     </div>
 </div>
 
-<div class="footer">
-    Funciona en Windows 10, Edge y OLPC XO.<br>
-    Usa el motor oficial de YouTube.
-</div>
-
 <script>
-    function cargarVideo() {
-        var url = document.getElementById('urlInput').value;
-        var wrapper = document.getElementById('wrapper');
-        var reproductor = document.getElementById('reproductor');
+    function reproducir() {
+        var input = document.getElementById('ytUrl').value;
+        var videoBox = document.getElementById('videoBox');
+        var player = document.getElementById('player');
 
-        // Extraer el ID del video (funciona con links cortos y largos)
-        var videoId = "";
-        if (url.includes("v=")) {
-            videoId = url.split("v=")[1].split("&")[0];
-        } else if (url.includes("youtu.be/")) {
-            videoId = url.split("youtu.be/")[1].split("?")[0];
+        // Extraer ID
+        var id = "";
+        if (input.includes("v=")) {
+            id = input.split("v=")[1].split("&")[0];
+        } else if (input.includes("youtu.be/")) {
+            id = input.split("youtu.be/")[1].split("?")[0];
         } else {
-            alert("Por favor, pega un link válido de YouTube");
+            alert("Enlace no reconocido");
             return;
         }
 
-        // Construir la URL de "Embed" oficial de YouTube
-        // 'vq=small' intenta forzar calidad baja para la XO
-        var embedUrl = "https://www.youtube.com/embed/" + videoId + "?autoplay=1&rel=0&vq=small";
+        // Usamos youtube-nocookie y parámetros para quitar distracciones
+        // controls=1 (mínimos), rel=0 (no videos relacionados), modestbranding=1 (quita el logo grande)
+        var cleanUrl = "https://www.youtube-nocookie.com/embed/" + id + 
+                       "?autoplay=1&rel=0&modestbranding=1&controls=1&showinfo=0&iv_load_policy=3";
 
-        reproductor.src = embedUrl;
-        wrapper.style.display = "block";
+        player.src = cleanUrl;
+        videoBox.style.display = "block";
     }
 </script>
 
