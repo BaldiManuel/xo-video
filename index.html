@@ -3,164 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XO-Tube Enjambre</title>
+    <title>XO-Tube Proxy</title>
     <style>
-        /* Estilo ultra-ligero y oscuro */
-        body { background-color: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; margin: 0; padding: 10px; }
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; margin: 0; padding: 10px; }
+        .box { max-width: 600px; margin: 0 auto; border: 2px solid #333; padding: 15px; background: #111; }
         
-        .container { max-width: 700px; margin: 0 auto; border: 2px solid #333; padding: 10px; background: #111; }
+        /* Reproductor nativo limpio */
+        video { width: 100%; border: 1px solid #444; background: #000; margin-top: 15px; display: none; }
         
-        /* Reproductor Nativo Limpio */
-        video { width: 100%; aspect-ratio: 16/9; background: #000; border: 1px solid #444; display: none; }
+        input { width: 70%; padding: 10px; background: #222; color: white; border: 1px solid #555; }
+        button { padding: 10px; background: #004400; color: white; border: 1px solid #00ff00; cursor: pointer; font-weight: bold; }
+        button:hover { background: #006600; }
         
-        .controls { display: none; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+        .controls { display: none; margin-top: 10px; gap: 5px; justify-content: center; }
+        .active { background: #0088ff !important; border-color: white; }
         
-        button { 
-            padding: 12px; background: #222; color: white; border: 1px solid #555; 
-            cursor: pointer; font-weight: bold; font-size: 14px;
-        }
-        button:hover { background: #444; }
-        .active { background: #006600; border-color: #00ff00; }
-        
-        input { width: 80%; padding: 10px; background: #222; color: white; border: 1px solid #555; margin-bottom: 10px; }
-        
-        #log { font-size: 12px; color: #ffaa00; margin-top: 10px; min-height: 20px; text-align: left; padding: 5px; border-top: 1px solid #333; }
-        .success { color: #00ff00 !important; }
-        .error { color: #ff3333 !important; }
+        #status { margin-top: 10px; font-size: 12px; color: yellow; min-height: 20px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2 style="margin:5px 0;">XO-TUBE <span style="font-size:0.6em; color:#888;">(Modo Enjambre)</span></h2>
+<div class="box">
+    <h2>XO-TUBE <span style="font-size:0.6em; color:orange;">(Versión Proxy)</span></h2>
     
-    <input type="text" id="urlInput" placeholder="Pega el link de YouTube aquí...">
-    <br>
-    <button onclick="iniciarCarga()" style="width: 50%; background: #004488;">BUSCAR VIDEO</button>
+    <input type="text" id="url" placeholder="Pega el link de YouTube...">
+    <button onclick="buscar()">VER VIDEO</button>
+    
+    <div id="status">Listo.</div>
 
-    <div id="log">Esperando enlace...</div>
-
-    <video id="miVideo" controls playsinline poster="https://via.placeholder.com/640x360/000000/ffffff?text=Cargando..."></video>
-
-    <div class="controls" id="panelControl">
+    <video id="vid" controls playsinline></video>
+    
+    <div class="controls" id="ctrls">
         <button onclick="cambiarCalidad('144p')" id="btn144">144p</button>
         <button onclick="cambiarCalidad('240p')" id="btn240">240p</button>
         <button onclick="cambiarCalidad('360p')" id="btn360">360p</button>
-        <button onclick="pantallaCompleta()" style="background:#550055;">FullScr</button>
     </div>
 </div>
 
 <script>
-    // LISTA DE SERVIDORES (El Enjambre)
-    // Si uno falla, el código prueba el siguiente automáticamente.
-    const servidores = [
-        "https://pipedapi.kavin.rocks",
-        "https://api.piped.victr.me",
-        "https://pipedapi.leptons.xyz",
-        "https://pipedapi.r4fo.com",
-        "https://piped-api.lunar.icu",
-        "https://api.piped.privacy.com.de",
-        "https://pipedapi.drgns.space",
-        "https://pa.il.ax" 
-    ];
+    let streamData = null;
+    const status = document.getElementById('status');
+    const video = document.getElementById('vid');
 
-    let videoId = "";
-    let datosVideo = null;
-    const log = document.getElementById('log');
-    const video = document.getElementById('miVideo');
-    const panel = document.getElementById('panelControl');
-
-    function logMsg(msg, tipo) {
-        log.innerText = ">> " + msg;
-        log.className = tipo || "";
-    }
-
-    async function iniciarCarga() {
-        const url = document.getElementById('urlInput').value;
-        const match = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+    async function buscar() {
+        const input = document.getElementById('url').value;
+        const match = input.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+        if (!match) return status.innerText = "Error: Link inválido";
         
-        if (!match) return logMsg("Link incorrecto. Revisa la URL.", "error");
-        
-        videoId = match[1];
+        const id = match[1];
+        status.innerText = "Usando Proxy para saltar bloqueo...";
+        status.style.color = "yellow";
         video.style.display = "none";
-        panel.style.display = "none";
-        datosVideo = null;
+        document.getElementById('ctrls').style.display = "none";
+
+        // Usamos una instancia de Piped que suele ser rápida
+        const targetApi = `https://pipedapi.kavin.rocks/streams/${id}`;
         
-        // Empezamos la búsqueda en el enjambre
-        buscarEnEnjambre();
-    }
+        // EL TRUCO: Usamos 'api.allorigins.win' para que el navegador no bloquee la petición
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi)}`;
 
-    async function buscarEnEnjambre() {
-        for (let i = 0; i < servidores.length; i++) {
-            const servidor = servidores[i];
-            logMsg(`Intentando servidor ${i+1}/${servidores.length}: ${servidor.split('/')[2]}...`, "");
+        try {
+            const res = await fetch(proxyUrl);
+            if (!res.ok) throw new Error("Proxy falló");
+            
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
 
-            try {
-                // Hacemos la petición con un tiempo límite de 4 segundos por servidor
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-                const respuesta = await fetch(`${servidor}/streams/${videoId}`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if (respuesta.ok) {
-                    const datos = await respuesta.json();
-                    if (!datos.videoStreams || datos.videoStreams.length === 0) throw new Error("Sin streams");
-                    
-                    datosVideo = datos; // Guardamos los datos para cambiar calidad luego
-                    logMsg(`¡CONECTADO! Título: ${datos.title}`, "success");
-                    
-                    // Activamos la interfaz
-                    video.style.display = "block";
-                    panel.style.display = "grid";
-                    
-                    // Por defecto cargamos 240p o la más baja
-                    cambiarCalidad('240p');
-                    return; // ¡ÉXITO! Salimos del bucle
-                }
-            } catch (error) {
-                console.log("Fallo servidor: " + servidor);
-                // Si falla, el bucle 'for' simplemente pasa al siguiente
-            }
+            streamData = data.videoStreams;
+            status.innerText = "¡Video encontrado! Cargando...";
+            status.style.color = "#00ff00";
+            
+            // Mostrar reproductor y controles
+            video.style.display = "block";
+            document.getElementById('ctrls').style.display = "flex";
+            
+            // Intentar cargar la calidad más baja primero
+            cambiarCalidad('240p');
+            
+        } catch (e) {
+            console.error(e);
+            status.innerText = "Error: " + e.message + ". Intenta otro video.";
+            status.style.color = "red";
         }
-        logMsg("❌ ERROR FATAL: Ningún servidor respondió. Intenta en 5 min.", "error");
     }
 
     function cambiarCalidad(calidad) {
-        if (!datosVideo) return;
+        if (!streamData) return;
         
-        logMsg(`Cambiando a calidad: ${calidad}...`, "");
+        status.innerText = "Cambiando a " + calidad + "...";
         
-        // Buscamos el stream mp4
-        let stream = datosVideo.videoStreams.find(s => s.quality === calidad && s.format === 'MPEG-4');
+        // Buscar stream mp4 o webm
+        let stream = streamData.find(s => s.quality === calidad && s.format === 'MPEG-4');
+        if (!stream) stream = streamData.find(s => s.quality === calidad);
         
-        // Si no encuentra MP4, busca WebM
-        if (!stream) stream = datosVideo.videoStreams.find(s => s.quality === calidad);
-        
-        // Si no encuentra la calidad exacta, busca la más cercana (fallback)
-        if (!stream && calidad === '240p') stream = datosVideo.videoStreams.find(s => s.quality === '360p');
-        if (!stream) stream = datosVideo.videoStreams[0]; // El primero que haya
+        // Fallback si no existe esa calidad exacta
+        if (!stream && calidad === '240p') stream = streamData.find(s => s.quality === '360p');
+        if (!stream) stream = streamData[0]; // El que sea
 
         if (stream) {
-            const tiempoActual = video.currentTime;
+            const tiempo = video.currentTime;
             video.src = stream.url;
-            video.currentTime = tiempoActual;
+            video.currentTime = tiempo;
             video.play();
+            status.innerText = "Reproduciendo: " + calidad;
             
-            // Actualizar botones visualmente
-            document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn'+calidad.replace('p',''))?.classList.add('active');
-            
-            logMsg(`Reproduciendo en ${stream.quality} (${stream.format})`, "success");
+            // Marcar botón activo
+            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn'+calidad.replace('p','')).classList.add('active');
         } else {
-            logMsg("Esa calidad no está disponible para este video.", "error");
+            status.innerText = "No disponible en " + calidad;
         }
-    }
-
-    function pantallaCompleta() {
-        if (video.requestFullscreen) video.requestFullscreen();
-        else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen(); // Safari/Old Chrome
-        else if (video.mozRequestFullScreen) video.mozRequestFullScreen(); // Firefox
     }
 </script>
 
