@@ -2,118 +2,108 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XO-Tube Proxy</title>
+    <title>XO-Tube Final Edition</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; margin: 0; padding: 10px; }
-        .box { max-width: 600px; margin: 0 auto; border: 2px solid #333; padding: 15px; background: #111; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
+        .window { max-width: 600px; margin: 0 auto; background: #1a1a1a; border: 2px solid #444; border-radius: 8px; padding-bottom: 10px; }
         
-        /* Reproductor nativo limpio */
-        video { width: 100%; border: 1px solid #444; background: #000; margin-top: 15px; display: none; }
+        /* Contenedor que recorta la interfaz de YouTube */
+        .video-clipper {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            overflow: hidden; /* Esto esconde los controles de YouTube */
+            background: #000;
+        }
+
+        /* El iframe se hace más grande que el contenedor para "sacar" los bordes de la vista */
+        iframe {
+            position: absolute;
+            top: -60px; /* Esconde la barra superior de YT */
+            left: -2px;
+            width: 101%;
+            height: calc(100% + 120px); /* Esconde la barra inferior de YT */
+            pointer-events: none; /* Evita que toques la interfaz de YT */
+        }
+
+        .custom-ui { padding: 15px; display: none; }
         
-        input { width: 70%; padding: 10px; background: #222; color: white; border: 1px solid #555; }
-        button { padding: 10px; background: #004400; color: white; border: 1px solid #00ff00; cursor: pointer; font-weight: bold; }
-        button:hover { background: #006600; }
+        button { 
+            background: #333; color: white; border: 1px solid #666; 
+            padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 4px; 
+            font-weight: bold;
+        }
         
-        .controls { display: none; margin-top: 10px; gap: 5px; justify-content: center; }
-        .active { background: #0088ff !important; border-color: white; }
+        button:active { background: #555; }
+        .btn-play { background: #d32f2f; border-color: #f44336; }
+        .btn-q { background: #1976d2; }
         
-        #status { margin-top: 10px; font-size: 12px; color: yellow; min-height: 20px; }
+        input { width: 80%; padding: 12px; margin: 10px 0; background: #222; border: 1px solid #444; color: white; }
+        #msg { font-size: 12px; color: #888; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h2>XO-TUBE <span style="font-size:0.6em; color:orange;">(Versión Proxy)</span></h2>
+<div class="window">
+    <h2 style="color: #f44336;">XO-TUBE SLIM</h2>
     
-    <input type="text" id="url" placeholder="Pega el link de YouTube...">
-    <button onclick="buscar()">VER VIDEO</button>
-    
-    <div id="status">Listo.</div>
+    <input type="text" id="urlInput" placeholder="Pega el link de YouTube aquí">
+    <br>
+    <button onclick="cargarVideo()">CARGAR VIDEO</button>
 
-    <video id="vid" controls playsinline></video>
-    
-    <div class="controls" id="ctrls">
-        <button onclick="cambiarCalidad('144p')" id="btn144">144p</button>
-        <button onclick="cambiarCalidad('240p')" id="btn240">240p</button>
-        <button onclick="cambiarCalidad('360p')" id="btn360">360p</button>
+    <div id="reproductor" class="video-clipper" style="display:none;">
+        <div style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10; background:transparent;"></div>
+        <iframe id="vidFrame" src="" frameborder="0" allow="autoplay"></iframe>
     </div>
+
+    <div id="controles" class="custom-ui">
+        <button class="btn-play" onclick="control('play')">REPRODUCIR/REINICIAR</button>
+        <button class="btn-q" onclick="control('small')">CALIDAD: 144p</button>
+        <button class="btn-q" onclick="control('medium')">CALIDAD: 360p</button>
+        <button onclick="toggleFS()">PANTALLA COMPLETA</button>
+    </div>
+    
+    <div id="msg">Inyectando motor oficial...</div>
 </div>
 
 <script>
-    let streamData = null;
-    const status = document.getElementById('status');
-    const video = document.getElementById('vid');
+    var videoId = "";
 
-    async function buscar() {
-        const input = document.getElementById('url').value;
-        const match = input.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
-        if (!match) return status.innerText = "Error: Link inválido";
+    function cargarVideo() {
+        var url = document.getElementById('urlInput').value;
+        var match = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
         
-        const id = match[1];
-        status.innerText = "Usando Proxy para saltar bloqueo...";
-        status.style.color = "yellow";
-        video.style.display = "none";
-        document.getElementById('ctrls').style.display = "none";
+        if (!match) return alert("URL no válida");
+        videoId = match[1];
 
-        // Usamos una instancia de Piped que suele ser rápida
-        const targetApi = `https://pipedapi.kavin.rocks/streams/${id}`;
+        document.getElementById('reproductor').style.display = "block";
+        document.getElementById('controles').style.display = "block";
         
-        // EL TRUCO: Usamos 'api.allorigins.win' para que el navegador no bloquee la petición
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetApi)}`;
+        control('small'); // Carga inicial en baja calidad
+    }
 
-        try {
-            const res = await fetch(proxyUrl);
-            if (!res.ok) throw new Error("Proxy falló");
-            
-            const data = await res.json();
-            
-            if (data.error) throw new Error(data.error);
-
-            streamData = data.videoStreams;
-            status.innerText = "¡Video encontrado! Cargando...";
-            status.style.color = "#00ff00";
-            
-            // Mostrar reproductor y controles
-            video.style.display = "block";
-            document.getElementById('ctrls').style.display = "flex";
-            
-            // Intentar cargar la calidad más baja primero
-            cambiarCalidad('240p');
-            
-        } catch (e) {
-            console.error(e);
-            status.innerText = "Error: " + e.message + ". Intenta otro video.";
-            status.style.color = "red";
+    function control(tipo) {
+        var frame = document.getElementById('vidFrame');
+        var base = "https://www.youtube-nocookie.com/embed/" + videoId;
+        
+        // vq=small es el comando para 144p/240p
+        // controls=0 oculta la interfaz oficial
+        // modestbranding=1 quita logos
+        var params = "?autoplay=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&vq=";
+        
+        if (tipo === 'play' || tipo === 'small') {
+            frame.src = base + params + "small";
+            document.getElementById('msg').innerText = "Motor en 144p/240p";
+        } else if (tipo === 'medium') {
+            frame.src = base + params + "medium";
+            document.getElementById('msg').innerText = "Motor en 360p";
         }
     }
 
-    function cambiarCalidad(calidad) {
-        if (!streamData) return;
-        
-        status.innerText = "Cambiando a " + calidad + "...";
-        
-        // Buscar stream mp4 o webm
-        let stream = streamData.find(s => s.quality === calidad && s.format === 'MPEG-4');
-        if (!stream) stream = streamData.find(s => s.quality === calidad);
-        
-        // Fallback si no existe esa calidad exacta
-        if (!stream && calidad === '240p') stream = streamData.find(s => s.quality === '360p');
-        if (!stream) stream = streamData[0]; // El que sea
-
-        if (stream) {
-            const tiempo = video.currentTime;
-            video.src = stream.url;
-            video.currentTime = tiempo;
-            video.play();
-            status.innerText = "Reproduciendo: " + calidad;
-            
-            // Marcar botón activo
-            document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn'+calidad.replace('p','')).classList.add('active');
-        } else {
-            status.innerText = "No disponible en " + calidad;
-        }
+    function toggleFS() {
+        var elem = document.getElementById('reproductor');
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
     }
 </script>
 
