@@ -2,128 +2,102 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>XO-Tube Studio</title>
+    <title>XO-Video Pro</title>
     <style>
-        body { background: #333; color: white; font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-        .window { background: #c0c0c0; border: 2px solid #fff; border-right-color: #808080; border-bottom-color: #808080; padding: 5px; max-width: 600px; margin: 0 auto; }
-        .title-bar { background: #000080; color: white; padding: 3px 5px; font-weight: bold; text-align: left; margin-bottom: 10px; }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; padding: 10px; }
+        .player-box { max-width: 600px; margin: 0 auto; background: #000; border: 2px solid #444; border-radius: 8px; overflow: hidden; }
         
-        /* El contenedor del video */
-        #player-container { 
-            width: 100%; 
-            background: black; 
-            position: relative;
-            overflow: hidden;
-            height: 340px;
-        }
-
-        /* Ocultamos los controles originales tapándolos con un div invisible */
-        #guard {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10;
-            background: transparent;
-        }
-
-        iframe { width: 100%; height: 100%; pointer-events: none; }
-
-        .panel-controles { background: #c0c0c0; padding: 10px; border-top: 2px solid #808080; }
+        /* Video puro, sin nada de YouTube */
+        video { width: 100%; display: block; background: #000; }
+        
+        .controls { background: #333; padding: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        input { width: 80%; padding: 10px; margin: 10px 0; border-radius: 4px; border: none; }
         
         button { 
-            padding: 5px 10px; margin: 2px; border: 2px solid #fff; 
-            border-right-color: #808080; border-bottom-color: #808080;
-            background: #c0c0c0; cursor: pointer; font-weight: bold;
+            padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+            background: #444; color: white;
         }
-        button:active { border: 2px solid #808080; border-right-color: #fff; border-bottom-color: #fff; }
+        button:hover { background: #666; }
+        .btn-play { background: #28a745; }
+        .btn-qual { background: #007bff; }
+        .btn-fs { background: #6f42c1; }
         
-        input { width: 70%; padding: 5px; margin-bottom: 10px; }
-        .status-bar { background: #c0c0c0; border: 1px inset #fff; padding: 2px; font-size: 12px; color: black; margin-top: 5px; text-align: left; }
+        #status { font-size: 12px; padding: 5px; color: #888; }
     </style>
 </head>
 <body>
 
-<div class="window">
-    <div class="title-bar">XO-Tube Player v2.0</div>
+<div class="player-box">
+    <video id="mainVideo" playsinline></video>
     
-    <input type="text" id="url" placeholder="Pega el link aquí...">
-    <button onclick="loadVideo()">CARGAR</button>
-
-    <div id="player-container">
-        <div id="guard"></div> <div id="player"></div> </div>
-
-    <div class="panel-controles">
-        <button onclick="play()">▶ Play</button>
-        <button onclick="pause()">⏸ Pausa</button>
-        <button style="background:#ffcc00" onclick="setRes('small')">Low (144p)</button>
-        <button style="background:#00ccff" onclick="setRes('medium')">Mid (360p)</button>
-        <button style="background:#ff5555" onclick="toggleFS()">[ ] Fullscreen</button>
+    <div class="controls" id="ui" style="display:none;">
+        <button class="btn-play" onclick="togglePlay()">PAUSA/PLAY</button>
+        <button class="btn-fs" onclick="openFS()">PANTALLA COMPLETA</button>
+        <button onclick="rewind()">-10s</button>
+        
+        <button class="btn-qual" onclick="changeQ('144p')">144p</button>
+        <button class="btn-qual" onclick="changeQ('240p')">240p</button>
+        <button class="btn-qual" onclick="changeQ('360p')">360p</button>
     </div>
-
-    <div class="status-bar" id="status">Estado: Listo</div>
 </div>
 
+<input type="text" id="vUrl" placeholder="Pega el link de YouTube aquí">
+<br>
+<button onclick="loadStream()" style="background:#ff0000; width:200px;">CARGAR VIDEO</button>
+<div id="status">Esperando link...</div>
+
 <script>
-    // 1. Cargamos la API de YouTube de forma asíncrona
-    var tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    var firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    let video = document.getElementById('mainVideo');
+    let status = document.getElementById('status');
+    let currentId = "";
 
-    var player;
-    function onYouTubeIframeAPIReady() {
-        console.log("API Lista");
-    }
-
-    function loadVideo() {
-        var val = document.getElementById('url').value;
-        var id = val.includes('v=') ? val.split('v=')[1].split('&')[0] : val.split('/').pop();
+    async function loadStream() {
+        let url = document.getElementById('vUrl').value;
+        let match = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+        if(!match) return alert("Link inválido");
         
-        if (player) { player.destroy(); }
+        currentId = match[1];
+        status.innerText = "Saltando anuncios y buscando fuentes...";
+        document.getElementById('ui').style.display = "grid";
+        
+        changeQ('240p'); // Calidad inicial por defecto
+    }
 
-        player = new YT.Player('player', {
-            height: '100%',
-            width: '100%',
-            videoId: id,
-            playerVars: {
-                'controls': 0,          // DESACTIVA LA INTERFAZ DE YT
-                'disablekb': 1,        // Desactiva teclado de YT
-                'modestbranding': 1,   // Quita logo
-                'rel': 0,              // No recomendados
-                'iv_load_policy': 3    // Sin anotaciones
-            },
-            events: {
-                'onReady': onPlayerReady,
-                'onStateChange': onPlayerStateChange
+    async function changeQ(quality) {
+        status.innerText = "Cargando calidad: " + quality + "...";
+        let time = video.currentTime;
+        
+        // Usamos una API de stream directo que se salta la interfaz de YT
+        // Probamos con múltiples instancias de Cobra/Piped para asegurar conexión
+        const instances = ['https://pipedapi.kavin.rocks', 'https://api.piped.victr.me', 'https://pipedapi.lunar.icu'];
+        
+        for (let inst of instances) {
+            try {
+                let res = await fetch(`${inst}/streams/${currentId}`);
+                let data = await res.json();
+                
+                // Buscamos exactamente la calidad que pidió el usuario
+                let stream = data.videoStreams.find(s => s.quality === quality) || data.videoStreams[0];
+                
+                if (stream.url) {
+                    video.src = stream.url;
+                    video.currentTime = time;
+                    video.play();
+                    status.innerText = "Viendo en " + quality + " (Sin anuncios)";
+                    return;
+                }
+            } catch (e) {
+                console.log("Fallo instancia, probando otra...");
             }
-        });
+        }
+        status.innerText = "Error de conexión. Reintenta.";
     }
 
-    function onPlayerReady(event) {
-        document.getElementById('status').innerText = "Estado: Video Cargado";
-    }
-
-    function onPlayerStateChange(event) {
-        if (event.data == YT.PlayerState.PLAYING) document.getElementById('status').innerText = "Estado: Reproduciendo";
-        if (event.data == YT.PlayerState.PAUSED) document.getElementById('status').innerText = "Estado: Pausado";
-    }
-
-    // Funciones de tus botones propios
-    function play() { player.playVideo(); }
-    function pause() { player.pauseVideo(); }
-    
-    function setRes(res) {
-        // Intentar forzar calidad
-        player.setPlaybackQuality(res);
-        document.getElementById('status').innerText = "Calidad: " + res;
-        // Reiniciamos para aplicar
-        var t = player.getCurrentTime();
-        player.loadVideoById(player.getVideoData().video_id, t, res);
-    }
-
-    function toggleFS() {
-        var p = document.getElementById('player-container');
-        if (p.requestFullscreen) p.requestFullscreen();
-        else if (p.webkitRequestFullscreen) p.webkitRequestFullscreen();
+    function togglePlay() { video.paused ? video.play() : video.pause(); }
+    function rewind() { video.currentTime -= 10; }
+    function openFS() {
+        if (video.requestFullscreen) video.requestFullscreen();
+        else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
     }
 </script>
 
