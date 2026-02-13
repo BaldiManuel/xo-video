@@ -2,108 +2,65 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>XO-Tube Final Edition</title>
+    <title>XO Invidious Lite</title>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; overflow-x: hidden; }
-        .window { max-width: 600px; margin: 0 auto; background: #1a1a1a; border: 2px solid #444; border-radius: 8px; padding-bottom: 10px; }
-        
-        /* Contenedor que recorta la interfaz de YouTube */
-        .video-clipper {
-            position: relative;
-            width: 100%;
-            height: 300px;
-            overflow: hidden; /* Esto esconde los controles de YouTube */
-            background: #000;
-        }
-
-        /* El iframe se hace más grande que el contenedor para "sacar" los bordes de la vista */
-        iframe {
-            position: absolute;
-            top: -60px; /* Esconde la barra superior de YT */
-            left: -2px;
-            width: 101%;
-            height: calc(100% + 120px); /* Esconde la barra inferior de YT */
-            pointer-events: none; /* Evita que toques la interfaz de YT */
-        }
-
-        .custom-ui { padding: 15px; display: none; }
-        
-        button { 
-            background: #333; color: white; border: 1px solid #666; 
-            padding: 10px 15px; margin: 5px; cursor: pointer; border-radius: 4px; 
-            font-weight: bold;
-        }
-        
-        button:active { background: #555; }
-        .btn-play { background: #d32f2f; border-color: #f44336; }
-        .btn-q { background: #1976d2; }
-        
-        input { width: 80%; padding: 12px; margin: 10px 0; background: #222; border: 1px solid #444; color: white; }
-        #msg { font-size: 12px; color: #888; margin-top: 5px; }
+        body { background: #111; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
+        .box { max-width: 500px; margin: 0 auto; background: #222; border: 1px solid #444; padding: 15px; border-radius: 8px; }
+        input { width: 80%; padding: 10px; margin-bottom: 10px; background: #000; border: 1px solid #555; color: white; }
+        button { background: #f35; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
+        video { width: 100%; margin-top: 20px; border: 1px solid #555; display: none; background: #000; }
+        #status { font-size: 12px; color: #aaa; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="window">
-    <h2 style="color: #f44336;">XO-TUBE SLIM</h2>
-    
-    <input type="text" id="urlInput" placeholder="Pega el link de YouTube aquí">
+<div class="box">
+    <h2>XO Invidious Lite</h2>
+    <input type="text" id="ytUrl" placeholder="Pega el link de YouTube">
     <br>
-    <button onclick="cargarVideo()">CARGAR VIDEO</button>
-
-    <div id="reproductor" class="video-clipper" style="display:none;">
-        <div style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:10; background:transparent;"></div>
-        <iframe id="vidFrame" src="" frameborder="0" allow="autoplay"></iframe>
-    </div>
-
-    <div id="controles" class="custom-ui">
-        <button class="btn-play" onclick="control('play')">REPRODUCIR/REINICIAR</button>
-        <button class="btn-q" onclick="control('small')">CALIDAD: 144p</button>
-        <button class="btn-q" onclick="control('medium')">CALIDAD: 360p</button>
-        <button onclick="toggleFS()">PANTALLA COMPLETA</button>
-    </div>
+    <button onclick="buscar()">CARGAR VIDEO</button>
+    <div id="status">Listo.</div>
     
-    <div id="msg">Inyectando motor oficial...</div>
+    <video id="player" controls autoplay></video>
 </div>
 
 <script>
-    var videoId = "";
+    async function buscar() {
+        const urlInput = document.getElementById('ytUrl').value;
+        const status = document.getElementById('status');
+        const video = document.getElementById('player');
+        
+        const match = urlInput.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
+        if (!match) return alert("Link inválido");
+        const id = match[1];
 
-    function cargarVideo() {
-        var url = document.getElementById('urlInput').value;
-        var match = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/);
-        
-        if (!match) return alert("URL no válida");
-        videoId = match[1];
+        status.innerText = "Buscando archivo MP4 compatible...";
+        video.style.display = "none";
 
-        document.getElementById('reproductor').style.display = "block";
-        document.getElementById('controles').style.display = "block";
-        
-        control('small'); // Carga inicial en baja calidad
-    }
+        // Usamos una instancia que permite acceso directo a los archivos MP4
+        const instancia = "https://inv.tux.rs"; 
 
-    function control(tipo) {
-        var frame = document.getElementById('vidFrame');
-        var base = "https://www.youtube-nocookie.com/embed/" + videoId;
-        
-        // vq=small es el comando para 144p/240p
-        // controls=0 oculta la interfaz oficial
-        // modestbranding=1 quita logos
-        var params = "?autoplay=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&vq=";
-        
-        if (tipo === 'play' || tipo === 'small') {
-            frame.src = base + params + "small";
-            document.getElementById('msg').innerText = "Motor en 144p/240p";
-        } else if (tipo === 'medium') {
-            frame.src = base + params + "medium";
-            document.getElementById('msg').innerText = "Motor en 360p";
+        try {
+            const res = await fetch(`${instancia}/api/v1/videos/${id}`);
+            const data = await res.json();
+
+            // EL SECRETO: Filtramos para ignorar los codecs raros y buscar solo MP4
+            // Esto evita el error de "Source not compatible"
+            const mp4 = data.formatStreams.find(f => f.container === "mp4" && f.encoding === "h264");
+
+            if (mp4) {
+                let finalUrl = mp4.url;
+                if (finalUrl.startsWith('/')) finalUrl = instancia + finalUrl;
+
+                video.src = finalUrl;
+                video.style.display = "block";
+                status.innerText = "Reproduciendo: " + data.title;
+            } else {
+                status.innerText = "No se encontró un MP4 simple. Prueba otro video.";
+            }
+        } catch (e) {
+            status.innerText = "Error de conexión con el servidor Invidious.";
         }
-    }
-
-    function toggleFS() {
-        var elem = document.getElementById('reproductor');
-        if (elem.requestFullscreen) elem.requestFullscreen();
-        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
     }
 </script>
 
